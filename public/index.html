@@ -262,7 +262,7 @@
   <div id="view-write">
 
     <div class="date-row">
-      <span class="date-label">Today</span>
+      <span class="date-label" id="write-date-label">Today</span>
       <span class="date-value" id="today-date"></span>
     </div>
 
@@ -364,6 +364,10 @@
       <div class="modal-label">Prayer</div>
       <div class="modal-body" id="modal-prayer"></div>
     </div>
+    <button class="save-btn" id="modal-edit-btn" style="margin-top: 8px;">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="1.8"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="1.8"/></svg>
+      Edit this entry
+    </button>
   </div>
 </div>
 
@@ -408,6 +412,8 @@ let selectedMood = "";
 let currentVerse = null;
 let passcode = null;
 let allEntries = {};
+let modalEntryKey = null;
+let editingKey = null;
 
 document.getElementById("today-date").textContent = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
@@ -474,32 +480,18 @@ async function persistEntries(entries) {
   return res.json();
 }
 
-function loadTodayIntoForm() {
-  const e = allEntries[todayKey];
-  if (!e) return;
-  if (e.gratitude && e.gratitude[0]) document.getElementById("g1").value = e.gratitude[0];
-  if (e.gratitude && e.gratitude[1]) document.getElementById("g2").value = e.gratitude[1];
-  if (e.gratitude && e.gratitude[2]) document.getElementById("g3").value = e.gratitude[2];
-  if (e.reflection) document.getElementById("reflection").value = e.reflection;
-  if (e.prayer) document.getElementById("prayer").value = e.prayer;
-  if (e.verse) setVerse(e.verse);
-  if (e.mood) {
-    selectedMood = e.mood;
-    document.querySelectorAll(".mood-btn").forEach(b => {
-      if (b.textContent === e.mood) b.classList.add("active");
-    });
-  }
-}
-
 async function saveEntry() {
   const btn = document.getElementById("save-btn");
   const notice = document.getElementById("saved-notice");
   const noticeText = document.getElementById("saved-notice-text");
   btn.disabled = true;
 
+  const targetKey = editingKey || todayKey;
+  const existing = allEntries[targetKey];
+
   const entry = {
-    date: todayKey,
-    dateDisplay: document.getElementById("today-date").textContent,
+    date: targetKey,
+    dateDisplay: existing ? existing.dateDisplay : document.getElementById("today-date").textContent,
     gratitude: [
       document.getElementById("g1").value,
       document.getElementById("g2").value,
@@ -511,12 +503,14 @@ async function saveEntry() {
     verse: currentVerse,
   };
 
-  allEntries[todayKey] = entry;
+  allEntries[targetKey] = entry;
 
   try {
     await persistEntries(allEntries);
     notice.classList.remove("error");
-    noticeText.textContent = "Entry saved and synced";
+    noticeText.textContent = editingKey ? "Entry updated and synced" : "Entry saved and synced";
+    editingKey = null;
+    clearForm();
   } catch (e) {
     notice.classList.add("error");
     noticeText.textContent = "Saved locally, but sync failed — check your connection";
@@ -525,6 +519,19 @@ async function saveEntry() {
     notice.style.opacity = "1";
     setTimeout(() => { notice.style.opacity = "0"; }, 3000);
   }
+}
+
+function clearForm() {
+  document.getElementById("g1").value = "";
+  document.getElementById("g2").value = "";
+  document.getElementById("g3").value = "";
+  document.getElementById("reflection").value = "";
+  document.getElementById("prayer").value = "";
+  selectedMood = "";
+  document.querySelectorAll(".mood-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("write-date-label").textContent = "Today";
+  document.getElementById("today-date").textContent = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  setVerse(pickVerse(now.getMonth() * 31 + now.getDate()));
 }
 
 function showTab(tab) {
@@ -561,7 +568,7 @@ function renderEntries() {
       </div>
       <div class="entry-card-preview">${escapeHtml(preview)}</div>
     `;
-    card.onclick = () => openModal(e);
+    card.onclick = () => openModal(e, k);
     list.appendChild(card);
   });
 }
@@ -572,7 +579,8 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function openModal(e) {
+function openModal(e, key) {
+  modalEntryKey = key;
   document.getElementById("modal-date").textContent = e.dateDisplay || e.date;
   document.getElementById("modal-verse").innerHTML = e.verse
     ? `<em>"${escapeHtml(e.verse.text)}"</em><br><span style="color:var(--ink-faint); font-size:13px;">${escapeHtml(e.verse.ref)}</span>`
@@ -602,6 +610,28 @@ function closeModal() {
   document.getElementById("modal-overlay").classList.remove("open");
 }
 
+function editEntryFromModal() {
+  const e = allEntries[modalEntryKey];
+  if (!e) return;
+  document.getElementById("g1").value = (e.gratitude && e.gratitude[0]) || "";
+  document.getElementById("g2").value = (e.gratitude && e.gratitude[1]) || "";
+  document.getElementById("g3").value = (e.gratitude && e.gratitude[2]) || "";
+  document.getElementById("reflection").value = e.reflection || "";
+  document.getElementById("prayer").value = e.prayer || "";
+  if (e.verse) setVerse(e.verse);
+  selectedMood = e.mood || "";
+  document.querySelectorAll(".mood-btn").forEach(b => {
+    b.classList.toggle("active", b.textContent === e.mood);
+  });
+  editingKey = modalEntryKey;
+  document.getElementById("write-date-label").textContent = "Editing";
+  document.getElementById("today-date").textContent = e.dateDisplay || modalEntryKey;
+  closeModal();
+  showTab("write");
+}
+
+document.getElementById("modal-edit-btn").addEventListener("click", editEntryFromModal);
+
 async function enterJournal(code) {
   passcode = code;
   document.getElementById("gate-view").style.display = "none";
@@ -611,7 +641,6 @@ async function enterJournal(code) {
   try {
     allEntries = await fetchEntries();
     sessionStorage.setItem(PASSCODE_LS_KEY, code);
-    loadTodayIntoForm();
     setSyncStatus("Synced", false);
     setTimeout(() => setSyncStatus(null), 1800);
   } catch (e) {
