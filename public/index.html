@@ -266,6 +266,14 @@
       <span class="date-value" id="today-date"></span>
     </div>
 
+    <div class="section">
+      <div class="section-label">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4" stroke="#5C7058" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="#5C7058" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Instructions for the day
+      </div>
+      <textarea id="instructions" placeholder="What's on my agenda today..." style="min-height: 70px;"></textarea>
+    </div>
+
     <div class="verse-card">
       <button class="verse-suggest-btn" id="verse-refresh" aria-label="Show another verse" title="Show another verse">
         <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
@@ -344,6 +352,10 @@
   <div class="modal-sheet">
     <div class="modal-close"></div>
     <div class="modal-date" id="modal-date"></div>
+    <div class="modal-section">
+      <div class="modal-label">Instructions for the day</div>
+      <div class="modal-body" id="modal-instructions"></div>
+    </div>
     <div class="modal-section">
       <div class="modal-label">Scripture</div>
       <div class="modal-body" id="modal-verse"></div>
@@ -492,6 +504,7 @@ async function saveEntry() {
   const entry = {
     date: targetKey,
     dateDisplay: existing ? existing.dateDisplay : document.getElementById("today-date").textContent,
+    instructions: document.getElementById("instructions").value,
     gratitude: [
       document.getElementById("g1").value,
       document.getElementById("g2").value,
@@ -522,6 +535,7 @@ async function saveEntry() {
 }
 
 function clearForm() {
+  document.getElementById("instructions").value = "";
   document.getElementById("g1").value = "";
   document.getElementById("g2").value = "";
   document.getElementById("g3").value = "";
@@ -582,6 +596,7 @@ function escapeHtml(str) {
 function openModal(e, key) {
   modalEntryKey = key;
   document.getElementById("modal-date").textContent = e.dateDisplay || e.date;
+  setModalField("modal-instructions", e.instructions ? escapeHtml(e.instructions) : null);
   document.getElementById("modal-verse").innerHTML = e.verse
     ? `<em>"${escapeHtml(e.verse.text)}"</em><br><span style="color:var(--ink-faint); font-size:13px;">${escapeHtml(e.verse.ref)}</span>`
     : "";
@@ -613,6 +628,7 @@ function closeModal() {
 function editEntryFromModal() {
   const e = allEntries[modalEntryKey];
   if (!e) return;
+  document.getElementById("instructions").value = e.instructions || "";
   document.getElementById("g1").value = (e.gratitude && e.gratitude[0]) || "";
   document.getElementById("g2").value = (e.gratitude && e.gratitude[1]) || "";
   document.getElementById("g3").value = (e.gratitude && e.gratitude[2]) || "";
